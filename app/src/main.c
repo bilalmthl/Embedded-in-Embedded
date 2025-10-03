@@ -42,14 +42,20 @@ int main(void) {
         return ret3;
     }
 
+    int n = 0;
     while (1) {
+        n++;
         gpio_pin_toggle_dt(&led0);
-        gpio_pin_toggle_dt(&led1);
-        gpio_pin_toggle_dt(&led2);
-        gpio_pin_toggle_dt(&led3);
+        if (n % 2 == 0) {
+            gpio_pin_toggle_dt(&led1);
+            gpio_pin_toggle_dt(&led2);
+            gpio_pin_toggle_dt(&led3);
+            
+        }
 
-        k_msleep(1000);
+        k_msleep(500);
     }
+    
 
     return 0;
 
