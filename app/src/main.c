@@ -58,6 +58,7 @@ static uint8_t ble_custom_characteristic_user_data[BLE_CUSTOM_CHARACTERISTIC_MAX
     {'E', 'i', 'E'};
 
 static bool counter_direction_up = true;  // true = counting up, false = counting down
+static bool led1_state = false;  // Track LED1 state: false = OFF, true = ON
 
 /* BLE SERVICE SETUP ---------------------------------------------------------------------------- */
 
@@ -86,12 +87,12 @@ BT_GATT_SERVICE_DEFINE(
 
 static ssize_t ble_custom_service_read(struct bt_conn* conn, const struct bt_gatt_attr* attr,
                                        void* buf, uint16_t len, uint16_t offset) {
-  // Send the data that is stored in the characteristic ("EiE" by default, can change if written to)
-  // by fetching it directly from the characteristic object
-  const char* data_to_send_to_connected_device = attr->user_data;
+  // Return the current status of LED1
+  const char* led_status = led1_state ? "ON" : "OFF";
+  
+  printk("[BLE] Read request - LED1 status: %s\n", led_status);
 
-  return bt_gatt_attr_read(conn, attr, buf, len, offset, data_to_send_to_connected_device,
-                           strlen(data_to_send_to_connected_device));
+  return bt_gatt_attr_read(conn, attr, buf, len, offset, led_status, strlen(led_status));
 }
 
 static ssize_t ble_custom_service_write(struct bt_conn* conn, const struct bt_gatt_attr* attr,
@@ -115,11 +116,13 @@ static ssize_t ble_custom_service_write(struct bt_conn* conn, const struct bt_ga
 
   // Check for LED control commands
   if (strncmp((const char*)value, "LED ON", 6) == 0) {
-    LED_set(LED0, LED_ON);
-    printk("[BLE] LED0 turned ON\n");
+    LED_set(LED1, LED_ON);
+    led1_state = true;
+    printk("[BLE] LED1 turned ON\n");
   } else if (strncmp((const char*)value, "LED OFF", 7) == 0) {
-    LED_set(LED0, LED_OFF);
-    printk("[BLE] LED0 turned OFF\n");
+    LED_set(LED1, LED_OFF);
+    led1_state = false;
+    printk("[BLE] LED1 turned OFF\n");
   }
 
   return len;
