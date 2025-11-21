@@ -6,7 +6,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
@@ -20,6 +19,8 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/printk.h>
 
+#include "LED.h"
+
 /* MACROS --------------------------------------------------------------------------------------- */
 
 #define BLE_CUSTOM_SERVICE_UUID \
@@ -28,11 +29,6 @@
   BT_UUID_128_ENCODE(0x12345678, 0x1234, 0x5678, 0x1234, 0x56789abcdef2)
 
 #define BLE_CUSTOM_CHARACTERISTIC_MAX_DATA_LENGTH 20
-#define LED0_NODE DT_ALIAS(led0)
-
-#if !DT_NODE_HAS_STATUS(LED0_NODE, okay)
-#error "Unsupported board: led0 devicetree alias is not defined"
-#endif
 
 /* PROTOTYPES ----------------------------------------------------------------------------------- */
 
@@ -41,8 +37,6 @@ static ssize_t ble_custom_service_read(struct bt_conn* conn, const struct bt_gat
 static ssize_t ble_custom_service_write(struct bt_conn* conn, const struct bt_gatt_attr* attr,
                                         const void* buf, uint16_t len, uint16_t offset,
                                         uint8_t flags);
-
-static void ble_custom_service_notify(void);
 
 /* VARIABLES ------------------------------------------------------------------------------------ */
 
@@ -61,10 +55,6 @@ static const struct bt_data ble_scan_response_data[] = {
 
 static uint8_t ble_custom_characteristic_user_data[BLE_CUSTOM_CHARACTERISTIC_MAX_DATA_LENGTH + 1] =
     {'E', 'i', 'E'};
-
-// LED 1 GPIO description and state
-static const struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-static bool led1_on = false;
 
 /* BLE SERVICE SETUP ---------------------------------------------------------------------------- */
 
@@ -120,21 +110,19 @@ static ssize_t ble_custom_service_write(struct bt_conn* conn, const struct bt_ga
   }
   printk("\n");
 
-  // Control LED 1 when LED ON or LED OFF is received
-  if (strcmp((char*)value, "LED ON") == 0) {
-    gpio_pin_set_dt(&led1, 1);
-    led1_on = true;
-    printk("[BLE] LED 1 turned ON\n");
-  } else if (strcmp((char*)value, "LED OFF") == 0) {
-    gpio_pin_set_dt(&led1, 0);
-    led1_on = false;
-    printk("[BLE] LED 1 turned OFF\n");
+  // Check for LED control commands
+  if (strncmp((const char*)value, "LED ON", 6) == 0) {
+    LED_set(LED0, LED_ON);
+    printk("[BLE] LED0 turned ON\n");
+  } else if (strncmp((const char*)value, "LED OFF", 7) == 0) {
+    LED_set(LED0, LED_OFF);
+    printk("[BLE] LED0 turned OFF\n");
   }
 
   return len;
 }
 
-static void ble_custom_service_notify(void) {
+static void ble_custom_service_notify() {
   static uint32_t counter = 0;
   bt_gatt_notify(NULL, &ble_custom_service.attrs[2], &counter, sizeof(counter));
   counter++;
@@ -143,6 +131,13 @@ static void ble_custom_service_notify(void) {
 /* MAIN ----------------------------------------------------------------------------------------- */
 
 int main(void) {
+  // Initialize LED driver
+  if (LED_init() < 0) {
+    printk("LED init failed\n");
+    return 0;
+  }
+  printk("LED initialized!\n");
+
   int err = bt_enable(NULL);
   if (err) {
     printk("Bluetooth init failed (err %d)\n", err);
@@ -158,18 +153,6 @@ int main(void) {
     printk("Advertising failed to start (err %d)\n", err);
     return 0;
   }
-
-  if(!gpio_is_ready_dt(&led1)) {
-    printk("LED 1 GPIO device not ready\n");
-    return 0;
-  }
-
-  err = gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
-  if (err < 0) {
-    printk("Failed to configure LED 1 GPIO pin (err %d)\n", err);
-    return 0;
-  }
-  led1_on = false;
 
   while (1) {
     k_sleep(K_MSEC(1000));

@@ -7,5 +7,8 @@
 
 # This is needed so that custom driver classes using system calls are taken into
 # account
+cmake_minimum_required(VERSION 3.13.1)
+
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 add_subdirectory(drivers)
