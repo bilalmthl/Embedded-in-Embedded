@@ -20,6 +20,7 @@
 #include <zephyr/sys/printk.h>
 
 #include "LED.h"
+#include "BTN.h"
 
 /* MACROS --------------------------------------------------------------------------------------- */
 
@@ -55,6 +56,8 @@ static const struct bt_data ble_scan_response_data[] = {
 
 static uint8_t ble_custom_characteristic_user_data[BLE_CUSTOM_CHARACTERISTIC_MAX_DATA_LENGTH + 1] =
     {'E', 'i', 'E'};
+
+static bool counter_direction_up = true;  // true = counting up, false = counting down
 
 /* BLE SERVICE SETUP ---------------------------------------------------------------------------- */
 
@@ -125,7 +128,12 @@ static ssize_t ble_custom_service_write(struct bt_conn* conn, const struct bt_ga
 static void ble_custom_service_notify() {
   static uint32_t counter = 0;
   bt_gatt_notify(NULL, &ble_custom_service.attrs[2], &counter, sizeof(counter));
-  counter++;
+  
+  if (counter_direction_up) {
+    counter++;
+  } else {
+    counter--;
+  }
 }
 
 /* MAIN ----------------------------------------------------------------------------------------- */
@@ -137,6 +145,13 @@ int main(void) {
     return 0;
   }
   printk("LED initialized!\n");
+
+  // Initialize BTN driver
+  if (BTN_init() < 0) {
+    printk("BTN init failed\n");
+    return 0;
+  }
+  printk("BTN initialized!\n");
 
   int err = bt_enable(NULL);
   if (err) {
@@ -155,6 +170,13 @@ int main(void) {
   }
 
   while (1) {
+    // Check if BTN0 (physical button 1) is pressed to reverse counter direction
+    if (BTN_check_clear_pressed(BTN0)) {
+      counter_direction_up = !counter_direction_up;
+      printk("Counter direction reversed: now counting %s\n", 
+             counter_direction_up ? "UP" : "DOWN");
+    }
+
     k_sleep(K_MSEC(1000));
     ble_custom_service_notify();
   }
